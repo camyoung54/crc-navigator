@@ -6,30 +6,37 @@ def calculate_age(dob):
     today = date.today()
     return today.year - dob.year - ((today.month, today.day) < (dob.month, dob.day))
 
-def compute_next_due_date(last_screen_date, last_screen_type, risk_level='standard'):
+def compute_next_due_date(last_screen_date, last_screen_type, family_history_crc=False, major_comorbidities=False):
     """
     Calculate next due date based on screening type and guidelines
     
     CRC Screening Guidelines:
-    - Colonoscopy: 10 years (standard risk), 5 years (high risk)
+    - Colonoscopy: 10 years (standard), 5 years (family history of CRC)
     - FIT (Fecal Immunochemical Test): 1 year
     - Cologuard: 3 years
     - Sigmoidoscopy: 5 years
     - CT Colonography: 5 years
+    
+    Family history of CRC shortens colonoscopy interval to 5 years
     """
     if not last_screen_date:
         return date.today()  # Never screened - due now
     
     # Screening intervals based on type
-    intervals = {
-        'Colonoscopy': 10 if risk_level == 'standard' else 5,
-        'FIT': 1,
-        'Cologuard': 3,
-        'Sigmoidoscopy': 5,
-        'CT Colonography': 5
-    }
+    if last_screen_type == 'Colonoscopy':
+        # Family history of CRC requires more frequent screening
+        interval_years = 5 if family_history_crc else 10
+    elif last_screen_type == 'FIT':
+        interval_years = 1
+    elif last_screen_type == 'Cologuard':
+        interval_years = 3
+    elif last_screen_type == 'Sigmoidoscopy':
+        interval_years = 5
+    elif last_screen_type == 'CT Colonography':
+        interval_years = 5
+    else:
+        interval_years = 1  # Default to annual if unknown
     
-    interval_years = intervals.get(last_screen_type, 1)
     return last_screen_date + relativedelta(years=interval_years)
 
 def compute_status(next_due_date, last_screen_date=None):
@@ -68,7 +75,8 @@ def compute_priority_score(patient_dict):
     - Never screened: +50 points
     - Days overdue: up to +40 points
     - Age 50-75 (target range): +20 points
-    - High risk: +20 points
+    - Family history of CRC: +15 points
+    - Major comorbidities: +10 points
     """
     score = 0
     today = date.today()
@@ -89,9 +97,12 @@ def compute_priority_score(patient_dict):
     elif age > 75:
         score += 10  # Still important but lower priority
     
-    # Risk level
-    if patient_dict.get('risk_level') == 'high':
-        score += 20
+    # Risk factors
+    if patient_dict.get('family_history_crc'):
+        score += 15  # Family history increases priority
+    
+    if patient_dict.get('major_comorbidities'):
+        score += 10  # Comorbidities increase priority (may need special considerations)
     
     return min(int(score), 100)
 
@@ -119,11 +130,12 @@ def update_patient_computed_fields(session, patient):
     # Calculate age from DOB
     patient.age = calculate_age(patient.dob)
     
-    # Calculate next due date
+    # Calculate next due date using new risk factors
     patient.next_due_date = compute_next_due_date(
         patient.last_screen_date,
         patient.last_screen_type,
-        patient.risk_level
+        patient.family_history_crc,
+        patient.major_comorbidities
     )
     
     # Update status
@@ -137,9 +149,17 @@ def get_screening_recommendation(patient):
     
     Returns a dictionary with recommendation details
     """
+    risk_factors = []
+    if patient.family_history_crc:
+        risk_factors.append("family history of CRC")
+    if patient.major_comorbidities:
+        risk_factors.append("major comorbidities")
+    
+    risk_note = f" (Note: Patient has {', '.join(risk_factors)})" if risk_factors else ""
+    
     if not patient.last_screen_date:
         return {
-            'message': f'{patient.name} has never been screened. Recommend discussing screening options.',
+            'message': f'{patient.name} has never been screened.{risk_note} Recommend discussing screening options.',
             'urgency': 'High',
             'suggested_action': 'Contact patient to discuss screening options and schedule FIT or colonoscopy'
         }
@@ -149,25 +169,25 @@ def get_screening_recommendation(patient):
     
     if status == 'Critically Overdue':
         return {
-            'message': f'{patient.name} is {abs(days_left)} days overdue for screening.',
+            'message': f'{patient.name} is {abs(days_left)} days overdue for screening.{risk_note}',
             'urgency': 'Critical',
             'suggested_action': 'Priority outreach needed. Contact immediately to schedule screening.'
         }
     elif status == 'Overdue':
         return {
-            'message': f'{patient.name} is {abs(days_left)} days overdue for screening.',
+            'message': f'{patient.name} is {abs(days_left)} days overdue for screening.{risk_note}',
             'urgency': 'High',
             'suggested_action': 'Contact patient to schedule screening as soon as possible.'
         }
     elif status == 'Due Soon':
         return {
-            'message': f'{patient.name} is due for screening in {days_left} days.',
+            'message': f'{patient.name} is due for screening in {days_left} days.{risk_note}',
             'urgency': 'Medium',
             'suggested_action': 'Contact patient to schedule screening in advance.'
         }
     else:
         return {
-            'message': f'{patient.name} is not due for screening until {patient.next_due_date.strftime("%m/%d/%Y")}.',
+            'message': f'{patient.name} is not due for screening until {patient.next_due_date.strftime("%m/%d/%Y")}.{risk_note}',
             'urgency': 'Low',
             'suggested_action': 'No action needed at this time.'
         }
