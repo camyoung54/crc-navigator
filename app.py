@@ -6,6 +6,12 @@ from datetime import date, datetime
 from db import get_session, get_all_patients, get_patient_by_id, add_patient
 from models import Contact, Patient
 
+# Auto-initialize database if it doesn't exist
+import os
+if not os.path.exists('crc_navigator.db'):
+    import subprocess
+    subprocess.run(['python3', 'init_db.py'])
+
 # Page config - must be first Streamlit command
 st.set_page_config(
     page_title="CRC Screening Navigator",
