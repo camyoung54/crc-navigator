@@ -153,6 +153,15 @@ with tab1:
         patient_data = []
         for p in patients:
             days_overdue = (date.today() - p.next_due_date).days if p.next_due_date else 0
+            
+            # Build risk factors string
+            risk_factors = []
+            if p.family_history_crc:
+                risk_factors.append("Family Hx")
+            if p.major_comorbidities:
+                risk_factors.append("Comorbidities")
+            risk_str = ", ".join(risk_factors) if risk_factors else "None"
+            
             patient_data.append({
                 'id': p.id,
                 'Name': p.name,
@@ -162,10 +171,12 @@ with tab1:
                 'Next Due': p.next_due_date.strftime('%Y-%m-%d') if p.next_due_date else 'N/A',
                 'Status': p.status,
                 'Days Overdue': max(days_overdue, 0),
-                'Risk': p.risk_level.title(),
+                'Risk Factors': risk_str,
                 'Phone': p.phone,
                 'Language': p.language,
-                'Transportation Barrier': p.transportation_barrier
+                'Transportation Barrier': p.transportation_barrier,
+                'Family History CRC': p.family_history_crc,
+                'Major Comorbidities': p.major_comorbidities
             })
         
         df = pd.DataFrame(patient_data)
@@ -299,24 +310,27 @@ with tab1:
             st.plotly_chart(fig_age, use_container_width=True)
         
         with chart_col4:
-            # Screening type breakdown
-            screen_counts = df['Last Screen'].value_counts()
+            # Risk factors breakdown
+            family_hx_count = len([p for p in patients if p.family_history_crc])
+            comorbidity_count = len([p for p in patients if p.major_comorbidities])
+            both_count = len([p for p in patients if p.family_history_crc and p.major_comorbidities])
+            none_count = len([p for p in patients if not p.family_history_crc and not p.major_comorbidities])
             
-            fig_screen = go.Figure(data=[go.Bar(
-                x=screen_counts.index.tolist(),
-                y=screen_counts.values.tolist(),
-                marker_color=['#ff6666', '#66b3ff', '#99ff99', '#ffcc99'][:len(screen_counts)],
-                text=screen_counts.values.tolist(),
+            fig_risk = go.Figure(data=[go.Bar(
+                x=['Family Hx CRC', 'Major\nComorbidities', 'Both', 'None'],
+                y=[family_hx_count, comorbidity_count, both_count, none_count],
+                marker_color=['#ff6666', '#ffaa66', '#ff4444', '#90EE90'],
+                text=[family_hx_count, comorbidity_count, both_count, none_count],
                 textposition='auto'
             )])
             
-            fig_screen.update_layout(
-                title='Last Screening Type Distribution',
+            fig_risk.update_layout(
+                title='Risk Factors Distribution',
                 xaxis_title='',
                 yaxis_title='Number of Patients',
                 height=400
             )
-            st.plotly_chart(fig_screen, use_container_width=True)
+            st.plotly_chart(fig_risk, use_container_width=True)
         
         st.markdown("---")
         
@@ -341,7 +355,7 @@ with tab1:
                 if st.button("✅ Select All Filters", use_container_width=True):
                     st.session_state.status_filter = df['Status'].unique().tolist()
                     st.session_state.village_filter = sorted(df['Village'].unique().tolist())
-                    st.session_state.risk_filter = df['Risk'].unique().tolist()
+                    st.session_state.risk_filter = df['Risk Factors'].unique().tolist()
                     st.rerun()
             
             with button_col2:
@@ -361,7 +375,7 @@ with tab1:
             if 'village_filter' not in st.session_state:
                 st.session_state.village_filter = sorted(df['Village'].unique().tolist())
             if 'risk_filter' not in st.session_state:
-                st.session_state.risk_filter = df['Risk'].unique().tolist()
+                st.session_state.risk_filter = df['Risk Factors'].unique().tolist()
             
             with filter_col1:
                 status_options = df['Status'].unique().tolist()
@@ -384,9 +398,9 @@ with tab1:
                 st.session_state.village_filter = village_filter
             
             with filter_col3:
-                risk_options = df['Risk'].unique().tolist()
+                risk_options = df['Risk Factors'].unique().tolist()
                 risk_filter = st.multiselect(
-                    "Risk Level",
+                    "Risk Factors",
                     options=risk_options,
                     default=st.session_state.risk_filter,
                     key="risk_multiselect"
@@ -397,7 +411,7 @@ with tab1:
         filtered_df = df[
             (df['Status'].isin(status_filter)) &
             (df['Village'].isin(village_filter)) &
-            (df['Risk'].isin(risk_filter))
+            (df['Risk Factors'].isin(risk_filter))
         ]
         
         # Apply name search if provided
@@ -445,7 +459,7 @@ with tab1:
             return [colors.get(row['Status'], '')] * len(row)
         
         # Display the dataframe
-        display_df = filtered_df.drop(columns=['id', 'Language', 'Transportation Barrier'])
+        display_df = filtered_df.drop(columns=['id', 'Language', 'Transportation Barrier', 'Family History CRC', 'Major Comorbidities'])
         st.dataframe(
             display_df.style.apply(color_status, axis=1),
             use_container_width=True,
@@ -670,9 +684,13 @@ with tab2:
                             st.write(f"**Date:** {p.last_screen_date.strftime('%m/%d/%Y')}")
                         st.write(f"**Last Contact:** {item['last_contact_date'].strftime('%m/%d/%Y') if item['last_contact_date'] else 'Never'}")
                     
-                    # Transportation barrier warning
+                    # Risk factors and barriers
+                    if p.family_history_crc:
+                        st.warning("⚠️ Family history of CRC")
+                    if p.major_comorbidities:
+                        st.warning("⚠️ Major comorbidities")
                     if p.transportation_barrier:
-                        st.warning("🚗 Transportation barrier noted")
+                        st.warning("🚗 Transportation barrier")
                     
                     st.markdown("---")
                     
@@ -834,7 +852,18 @@ with tab3:
                 'Never Screened': '🔴'
             }
             st.markdown(f"### {status_colors.get(patient.status, '⚪')} {patient.status}")
-            st.write(f"**Risk Level:** {patient.risk_level.title()}")
+            
+            # Display risk factors
+            risk_factors = []
+            if patient.family_history_crc:
+                risk_factors.append("Family Hx of CRC")
+            if patient.major_comorbidities:
+                risk_factors.append("Major Comorbidities")
+            
+            if risk_factors:
+                st.warning(f"⚠️ **Risk Factors:** {', '.join(risk_factors)}")
+            else:
+                st.info("ℹ️ **Risk Factors:** None documented")
         
         st.markdown("---")
         
@@ -916,8 +945,8 @@ with tab4:
         st.metric("Total Contact Logs", contacts_count)
     
     with col3:
-        high_risk = len([p for p in patients if p.risk_level == 'high'])
-        st.metric("High Risk Patients", high_risk)
+        family_hx = len([p for p in patients if p.family_history_crc])
+        st.metric("Family History CRC", family_hx)
     
     with col4:
         transport_barriers = len([p for p in patients if p.transportation_barrier])
@@ -957,7 +986,8 @@ with tab4:
         with form_col2:
             new_mrn = st.text_input("MRN", placeholder="0012345")
             new_email = st.text_input("Email", placeholder="patient@example.com")
-            new_risk = st.selectbox("Risk Level", ['standard', 'high'])
+            new_family_hx = st.checkbox("Family History of CRC")
+            new_comorbidities = st.checkbox("Major Comorbidities")
             new_transport = st.checkbox("Transportation Barrier")
             new_notes = st.text_area("Notes", placeholder="Any relevant patient notes...")
         
@@ -999,7 +1029,8 @@ with tab4:
                     'transportation_barrier': new_transport,
                     'last_screen_date': new_last_screen_date if new_last_screen_type != 'None' else None,
                     'last_screen_type': new_last_screen_type if new_last_screen_type != 'None' else None,
-                    'risk_level': new_risk,
+                    'family_history_crc': new_family_hx,
+                    'major_comorbidities': new_comorbidities,
                     'notes': new_notes if new_notes else None
                 }
                 
@@ -1076,7 +1107,8 @@ with tab4:
                 'Last Screen Type': p.last_screen_type,
                 'Next Due Date': p.next_due_date,
                 'Status': p.status,
-                'Risk Level': p.risk_level,
+                'Family History CRC': p.family_history_crc,
+                'Major Comorbidities': p.major_comorbidities,
                 'Notes': p.notes
             })
         
@@ -1109,8 +1141,8 @@ with tab4:
                 session.commit()
                 
                 # Re-run init script
-                import subprocess
-                subprocess.run(['python3', 'init_db.py'])
+                from init_db import main as init_main
+                init_main()
                 
                 st.success("✅ Database reset complete!")
                 st.rerun()
@@ -1134,10 +1166,14 @@ with tab4:
         - Use filters to focus on specific villages or risk groups
         
         ### Screening Guidelines
-        - **Colonoscopy**: Every 10 years (standard risk) or 5 years (high risk)
+        - **Colonoscopy**: Every 10 years (standard) or 5 years (family history of CRC)
         - **FIT Test**: Annually
         - **Cologuard**: Every 3 years
         - **Target Age**: 45-75 years old
+        
+        ### Risk Factors
+        - **Family History of CRC**: Increases screening frequency
+        - **Major Comorbidities**: May require special considerations for screening
         
         ### Support
         For questions or issues, contact: [support@example.com](mailto:support@example.com)
