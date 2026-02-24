@@ -8,9 +8,16 @@ from models import Contact, Patient
 
 # Auto-initialize database if it doesn't exist
 import os
+from models import Base
+from db import engine
+
 if not os.path.exists('crc_navigator.db'):
-    import subprocess
-    subprocess.run(['python3', 'init_db.py'])
+    # Create tables
+    Base.metadata.create_all(engine)
+    
+    # Import and run the initialization logic from init_db
+    from init_db import main as init_main
+    init_main()
 
 # Page config - must be first Streamlit command
 st.set_page_config(

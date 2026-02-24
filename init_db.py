@@ -142,9 +142,13 @@ def create_demo_data():
     print("✅ Demo data creation complete!")
     print("=" * 60)
 
-if __name__ == "__main__":
+def main():
+    """Main initialization function"""
     print("\n🚀 Initializing CRC Navigator Database...")
     init_db()
     print("\n")
     create_demo_data()
     print("\n✨ Database is ready! You can now run the Streamlit app.\n")
+
+if __name__ == "__main__":
+    main()
