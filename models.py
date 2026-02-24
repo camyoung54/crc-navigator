@@ -19,7 +19,8 @@ class Patient(Base):
     last_screen_date = Column(Date)
     last_screen_type = Column(String(50))  # Colonoscopy, FIT, Cologuard
     next_due_date = Column(Date)
-    risk_level = Column(String(20), default='standard')  # standard, high
+    family_history_crc = Column(Boolean, default=False)  # Family history of colorectal cancer
+    major_comorbidities = Column(Boolean, default=False)  # Has major comorbidities
     status = Column(String(50))  # Not due, Due, Overdue, Completed, Declined
     language = Column(String(50))  # English, Iñupiaq, etc.
     interpreter_needed = Column(Boolean, default=False)

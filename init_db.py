@@ -64,8 +64,11 @@ def create_demo_data(verbose=True):
             days_ago = random.randint(0, 15*365)
             last_screen_date = date.today() - timedelta(days=days_ago)
         
-        # 15% high risk
-        risk_level = 'high' if random.random() < 0.25 else 'standard'
+        # 20% have family history of CRC
+        family_history_crc = random.random() < 0.20
+
+        # 35% have major comorbidities (diabetes, heart disease, etc.)
+        major_comorbidities = random.random() < 0.35
         
         # 20% have transportation barriers
         transportation_barrier = random.random() < 0.30
@@ -82,7 +85,8 @@ def create_demo_data(verbose=True):
             'language': random.choice(languages),
             'last_screen_date': last_screen_date,
             'last_screen_type': last_screen_type,
-            'risk_level': risk_level,
+            'family_history_crc': family_history_crc,
+            'major_comorbidities': major_comorbidities,
             'transportation_barrier': transportation_barrier,
             'notes': 'Demo patient' if random.random() < 0.3 else None
         }
@@ -120,8 +124,9 @@ def create_demo_data(verbose=True):
         overdue = len([p for p in patients if p.status == 'Overdue'])
         due_soon = len([p for p in patients if p.status == 'Due Soon'])
         not_due = len([p for p in patients if p.status == 'Not Due'])
-        high_risk = len([p for p in patients if p.risk_level == 'high'])
-        
+        family_hx = len([p for p in patients if p.family_history_crc])
+        comorbidities = len([p for p in patients if p.major_comorbidities])
+
         print(f"\n📋 Total Patients: {total}")
         print(f"\n🎯 Status Breakdown:")
         print(f"   🔴 Never Screened: {never_screened} ({never_screened/total*100:.1f}%)")
@@ -129,7 +134,8 @@ def create_demo_data(verbose=True):
         print(f"   🟠 Overdue: {overdue} ({overdue/total*100:.1f}%)")
         print(f"   🟡 Due Soon: {due_soon} ({due_soon/total*100:.1f}%)")
         print(f"   🟢 Not Due: {not_due} ({not_due/total*100:.1f}%)")
-        print(f"\n⚠️  High Risk Patients: {high_risk} ({high_risk/total*100:.1f}%)")
+        print(f"\n⚠️  Family History of CRC: {family_hx} ({family_hx/total*100:.1f}%)")
+        print(f"⚠️  Major Comorbidities: {comorbidities} ({comorbidities/total*100:.1f}%)")        
         
         # Village breakdown
         print(f"\n🏘️  Patients by Village:")
