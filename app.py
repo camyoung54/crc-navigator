@@ -13,7 +13,7 @@ from db import engine, get_session
 from models import Patient
 
 # Check if database needs initialization
-if not os.path.exists('crc_navigator.db'):
+if not os.path.exists('crc_navigator_v2.db'):
     # Create database structure
     Base.metadata.create_all(engine)
     

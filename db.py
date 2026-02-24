@@ -3,7 +3,7 @@ from sqlalchemy.orm import sessionmaker
 from models import Base, Patient, Contact
 import os
 
-DATABASE_URL = "sqlite:///crc_navigator.db"
+DATABASE_URL = "sqlite:///crc_navigator_v2.db"
 
 engine = create_engine(DATABASE_URL, echo=False)
 SessionLocal = sessionmaker(bind=engine)
