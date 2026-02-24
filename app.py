@@ -9,15 +9,32 @@ from models import Contact, Patient
 # Auto-initialize database if it doesn't exist
 import os
 from models import Base
-from db import engine
+from db import engine, get_session
+from models import Patient
 
+# Check if database needs initialization
 if not os.path.exists('crc_navigator.db'):
-    # Create tables
+    # Create database structure
     Base.metadata.create_all(engine)
     
-    # Import and run the initialization logic from init_db
-    from init_db import main as init_main
-    init_main()
+    # Silently create demo data
+    from init_db import create_demo_data
+    create_demo_data(verbose=False)  # Silent for Streamlit
+
+
+# Verify database has data before continuing
+try:
+    session_check = get_session()
+    patient_count = session_check.query(Patient).count()
+    if patient_count == 0:
+        # Database exists but is empty - populate it
+        from init_db import create_demo_data
+        create_demo_data(verbose=False)  # Silent for Streamlit
+except Exception:
+    # If there's any error, initialize the database
+    Base.metadata.create_all(engine)
+    from init_db import create_demo_data
+    create_demo_data(verbose=False)  # Silent for Streamlit
 
 # Page config - must be first Streamlit command
 st.set_page_config(

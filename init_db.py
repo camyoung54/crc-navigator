@@ -3,7 +3,7 @@ from logic import update_patient_computed_fields
 from datetime import date, timedelta
 import random
 
-def create_demo_data():
+def create_demo_data(verbose=True):
     """Create realistic fake patient data for demo"""
     
     # Maniilaq Health Center villages
@@ -44,8 +44,9 @@ def create_demo_data():
     
     session = get_session()
     
-    print("\n🏥 Creating demo patients for Maniilaq CRC Screening Program...")
-    print("=" * 60)
+    if verbose:
+        print("\n🏥 Creating demo patients for Maniilaq CRC Screening Program...")
+        print("=" * 60)
     
     for i in range(342):
         # Random age between 20-90 (screening age range is 45-75)
@@ -92,62 +93,63 @@ def create_demo_data():
         # Calculate computed fields (next_due_date, status)
         update_patient_computed_fields(session, patient)
         
-        # Print progress
-        status_emoji = {
-            'Never Screened': '🔴',
-            'Critically Overdue': '🔴',
-            'Overdue': '🟠',
-            'Due Soon': '🟡',
-            'Not Due': '🟢'
-        }
-        emoji = status_emoji.get(patient.status, '⚪')
+        # Print progress only if verbose
+        if verbose:
+            status_emoji = {
+                'Never Screened': '🔴',
+                'Critically Overdue': '🔴',
+                'Overdue': '🟠',
+                'Due Soon': '🟡',
+                'Not Due': '🟢'
+            }
+            emoji = status_emoji.get(patient.status, '⚪')
+            print(f"{emoji} Created: {patient.name:25} | {patient.village:12} | {patient.status}")
+    
+    # Print summary statistics only if verbose
+    if verbose:
+        print("\n" + "=" * 60)
+        print("📊 SUMMARY STATISTICS")
+        print("=" * 60)
         
-        print(f"{emoji} Created: {patient.name:25} | {patient.village:12} | {patient.status}")
-    
-    # Print summary statistics
-    print("\n" + "=" * 60)
-    print("📊 SUMMARY STATISTICS")
-    print("=" * 60)
-    
-    from db import get_all_patients
-    patients = get_all_patients(session)
-    
-    total = len(patients)
-    never_screened = len([p for p in patients if p.status == 'Never Screened'])
-    critically_overdue = len([p for p in patients if p.status == 'Critically Overdue'])
-    overdue = len([p for p in patients if p.status == 'Overdue'])
-    due_soon = len([p for p in patients if p.status == 'Due Soon'])
-    not_due = len([p for p in patients if p.status == 'Not Due'])
-    high_risk = len([p for p in patients if p.risk_level == 'high'])
-    
-    print(f"\n📋 Total Patients: {total}")
-    print(f"\n🎯 Status Breakdown:")
-    print(f"   🔴 Never Screened: {never_screened} ({never_screened/total*100:.1f}%)")
-    print(f"   🔴 Critically Overdue: {critically_overdue} ({critically_overdue/total*100:.1f}%)")
-    print(f"   🟠 Overdue: {overdue} ({overdue/total*100:.1f}%)")
-    print(f"   🟡 Due Soon: {due_soon} ({due_soon/total*100:.1f}%)")
-    print(f"   🟢 Not Due: {not_due} ({not_due/total*100:.1f}%)")
-    print(f"\n⚠️  High Risk Patients: {high_risk} ({high_risk/total*100:.1f}%)")
-    
-    # Village breakdown
-    print(f"\n🏘️  Patients by Village:")
-    village_counts = {}
-    for p in patients:
-        village_counts[p.village] = village_counts.get(p.village, 0) + 1
-    
-    for village in sorted(village_counts.keys()):
-        print(f"   {village:15} {village_counts[village]:2} patients")
-    
-    print("\n" + "=" * 60)
-    print("✅ Demo data creation complete!")
-    print("=" * 60)
+        from db import get_all_patients
+        patients = get_all_patients(session)
+        
+        total = len(patients)
+        never_screened = len([p for p in patients if p.status == 'Never Screened'])
+        critically_overdue = len([p for p in patients if p.status == 'Critically Overdue'])
+        overdue = len([p for p in patients if p.status == 'Overdue'])
+        due_soon = len([p for p in patients if p.status == 'Due Soon'])
+        not_due = len([p for p in patients if p.status == 'Not Due'])
+        high_risk = len([p for p in patients if p.risk_level == 'high'])
+        
+        print(f"\n📋 Total Patients: {total}")
+        print(f"\n🎯 Status Breakdown:")
+        print(f"   🔴 Never Screened: {never_screened} ({never_screened/total*100:.1f}%)")
+        print(f"   🔴 Critically Overdue: {critically_overdue} ({critically_overdue/total*100:.1f}%)")
+        print(f"   🟠 Overdue: {overdue} ({overdue/total*100:.1f}%)")
+        print(f"   🟡 Due Soon: {due_soon} ({due_soon/total*100:.1f}%)")
+        print(f"   🟢 Not Due: {not_due} ({not_due/total*100:.1f}%)")
+        print(f"\n⚠️  High Risk Patients: {high_risk} ({high_risk/total*100:.1f}%)")
+        
+        # Village breakdown
+        print(f"\n🏘️  Patients by Village:")
+        village_counts = {}
+        for p in patients:
+            village_counts[p.village] = village_counts.get(p.village, 0) + 1
+        
+        for village in sorted(village_counts.keys()):
+            print(f"   {village:15} {village_counts[village]:2} patients")
+        
+        print("\n" + "=" * 60)
+        print("✅ Demo data creation complete!")
+        print("=" * 60)
 
 def main():
     """Main initialization function"""
     print("\n🚀 Initializing CRC Navigator Database...")
     init_db()
     print("\n")
-    create_demo_data()
+    create_demo_data(verbose=True)  # Verbose when run from CLI
     print("\n✨ Database is ready! You can now run the Streamlit app.\n")
 
 if __name__ == "__main__":
