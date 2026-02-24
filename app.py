@@ -332,6 +332,38 @@ with tab1:
             )
             st.plotly_chart(fig_risk, use_container_width=True)
         
+        # Third row of charts
+        chart_col5, chart_col6 = st.columns(2)
+        
+        with chart_col5:
+            # Screening type breakdown (original chart)
+            screen_counts = df['Last Screen'].value_counts()
+            
+            fig_screen = go.Figure(data=[go.Bar(
+                x=screen_counts.index.tolist(),
+                y=screen_counts.values.tolist(),
+                marker_color=['#ff6666', '#66b3ff', '#99ff99', '#ffcc99'][:len(screen_counts)],
+                text=screen_counts.values.tolist(),
+                textposition='auto'
+            )])
+            
+            fig_screen.update_layout(
+                title='Last Screening Type Distribution',
+                xaxis_title='',
+                yaxis_title='Number of Patients',
+                height=400
+            )
+            st.plotly_chart(fig_screen, use_container_width=True)
+        
+        with chart_col6:
+            # Placeholder for future chart
+            st.info("📊 **Additional Chart Coming Soon**\n\nThis space is reserved for future analytics.")
+            
+            # You can uncomment this when ready to add your chart:
+            # fig_placeholder = go.Figure()
+            # fig_placeholder.update_layout(title='Your Chart Title Here')
+            # st.plotly_chart(fig_placeholder, use_container_width=True)
+        
         st.markdown("---")
         
         # FILTERS SECTION
