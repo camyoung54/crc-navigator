@@ -4,8 +4,10 @@ import plotly.express as px
 import plotly.graph_objects as go
 from datetime import date, datetime
 from db import get_session, get_all_patients, get_patient_by_id, add_patient
-from models import Contact, Patient
-
+from models import Contact, Patient, Task
+from constants import TASK_TYPES, TASK_PRIORITIES, TASK_STATUSES, ROLES
+from db import (get_session, get_all_patients, get_patient_by_id, add_patient,
+                add_task, get_all_tasks, get_tasks_by_patient, update_task_status)
 # Auto-initialize database if it doesn't exist
 import os
 from models import Base

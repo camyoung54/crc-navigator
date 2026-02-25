@@ -61,3 +61,48 @@ def update_patient_status(session, patient_id, new_status):
         patient.status = new_status
         session.commit()
     return patient
+
+def add_task(session, task_data):
+    """Add a new task to the database"""
+    from models import Task
+    task = Task(**task_data)
+    session.add(task)
+    session.commit()
+    return task
+
+def get_all_tasks(session, status_filter=None):
+    """Get all tasks, optionally filtered by status"""
+    from models import Task
+    query = session.query(Task)
+    if status_filter:
+        query = query.filter(Task.status == status_filter)
+    return query.order_by(Task.priority.desc(), Task.due_date.asc()).all()
+
+def get_tasks_by_patient(session, patient_id, status_filter=None):
+    """Get all tasks for a specific patient"""
+    from models import Task
+    query = session.query(Task).filter(Task.patient_id == patient_id)
+    if status_filter:
+        query = query.filter(Task.status == status_filter)
+    return query.order_by(Task.created_date.desc()).all()
+
+def get_tasks_by_assignee(session, assigned_to):
+    """Get all tasks assigned to a specific person"""
+    from models import Task
+    return session.query(Task).filter(
+        Task.assigned_to == assigned_to,
+        Task.status != 'Completed'
+    ).order_by(Task.priority.desc(), Task.due_date.asc()).all()
+
+def update_task_status(session, task_id, new_status, completed_by=None):
+    """Update task status"""
+    from models import Task
+    from datetime import datetime
+    
+    task = session.query(Task).filter(Task.id == task_id).first()
+    if task:
+        task.status = new_status
+        if new_status == 'Completed':
+            task.completed_date = datetime.now()
+        session.commit()
+    return task
