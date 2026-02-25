@@ -1143,7 +1143,7 @@ with tab3:
                             st.write(f"**Created:** {task.created_date.strftime('%m/%d/%Y')} by {task.created_by}")
                         
                         if task.notes:
-                            st.info(f"**Notes:** {task.notes}")
+                            st.info(f"**Notes:** {task.description}")
                         
                         st.markdown("---")
                         
