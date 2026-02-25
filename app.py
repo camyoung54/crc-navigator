@@ -1057,7 +1057,7 @@ with tab3:
             
             quick_created_by = st.text_input(
                 "Your Name",
-                value="Navigator"
+                value=""
             )
         
         quick_submit = st.form_submit_button("➕ Create Task", use_container_width=True, type="primary")
