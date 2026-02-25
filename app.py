@@ -789,7 +789,7 @@ with tab2:
                             
                             contact_user = st.text_input(
                                 "Your Name", 
-                                value="Navigator",
+                                value="",
                                 key=f"user_{p.id}"
                             )
                         
@@ -953,7 +953,7 @@ with tab3:
                 
                 contact_user = st.text_input(
                     "Your Name", 
-                    value="Navigator",
+                    value="",
                     key=f"user_details_{patient.id}"
                 )
             
