@@ -808,6 +808,13 @@ with tab2:
                                 ],
                                 key=f"outcome_{p.id}"
                             )
+                            
+                            contact_role = st.selectbox(
+                                "Role",
+                                ["Navigator", "Social Worker", "CHAP", "Outreach Coordinator", 
+                                 "Primary Care Physician", "Specialty Physician", "Nurse", "Other"],
+                                key=f"role_{p.id}"
+                            )
                         
                         contact_notes = st.text_area(
                             "Notes",
@@ -828,6 +835,7 @@ with tab2:
                                 'method': contact_method,
                                 'outcome': contact_outcome,
                                 'user': contact_user,
+                                'role': contact_role,
                                 'notes': contact_notes,
                                 'timestamp': datetime.now()
                             }
@@ -930,6 +938,90 @@ with tab3:
         
         st.markdown("---")
         
+        # NEW: Add contact logging form HERE (before contact history)
+        st.subheader("📝 Log New Contact Attempt")
+        
+        with st.form(f"contact_form_details_{patient.id}", clear_on_submit=True):
+            form_col1, form_col2 = st.columns(2)
+            
+            with form_col1:
+                contact_method = st.selectbox(
+                    "Method",
+                    ["Phone Call", "Text Message", "In-Person", "Mail", "Email"],
+                    key=f"method_details_{patient.id}"
+                )
+                
+                contact_user = st.text_input(
+                    "Your Name", 
+                    value="Navigator",
+                    key=f"user_details_{patient.id}"
+                )
+            
+            with form_col2:
+                contact_outcome = st.selectbox(
+                    "Outcome",
+                    [
+                        "No Answer",
+                        "Left Voicemail",
+                        "Reached - Scheduled",
+                        "Reached - Declined",
+                        "Reached - Already Completed",
+                        "Reached - Needs More Info",
+                        "Wrong Number",
+                        "Other"
+                    ],
+                    key=f"outcome_details_{patient.id}"
+                )
+                
+                contact_role = st.selectbox(
+                    "Role",
+                    ["Navigator", "Social Worker", "CHAP", "Outreach Coordinator", 
+                     "Primary Care Physician", "Specialty Physician", "Nurse", "Other"],
+                    key=f"role_details_{patient.id}"
+                )
+            
+            contact_notes = st.text_area(
+                "Notes",
+                placeholder="Add any relevant notes about this contact...",
+                key=f"notes_details_{patient.id}"
+            )
+            
+            submitted = st.form_submit_button(
+                "💾 Log Contact Attempt",
+                use_container_width=True,
+                type="primary"
+            )
+            
+            if submitted:
+                # Add contact log
+                contact_data = {
+                    'patient_id': patient.id,
+                    'method': contact_method,
+                    'outcome': contact_outcome,
+                    'user': contact_user,
+                    'role': contact_role,
+                    'notes': contact_notes,
+                    'timestamp': datetime.now()
+                }
+                new_contact = Contact(**contact_data)
+                session.add(new_contact)
+                
+                # Update patient status if applicable
+                if "Scheduled" in contact_outcome:
+                    patient.status = "Scheduled"
+                elif "Declined" in contact_outcome:
+                    patient.status = "Declined"
+                elif "Completed" in contact_outcome:
+                    patient.status = "Completed"
+                
+                session.commit()
+                
+                st.success(f"✅ Contact logged for {patient.name}!")
+                st.balloons()
+                st.rerun()
+        
+        st.markdown("---")
+        
         # Complete contact history
         st.subheader("📞 Complete Contact History")
         
@@ -946,14 +1038,12 @@ with tab3:
                 with st.expander(f"{contact.timestamp.strftime('%m/%d/%Y %I:%M %p')} - {contact.method} - {contact.outcome}"):
                     st.write(f"**Method:** {contact.method}")
                     st.write(f"**Outcome:** {contact.outcome}")
-                    st.write(f"**Navigator:** {contact.user}")
+                    st.write(f"**Contact By:** {contact.user}")
+                    st.write(f"**Role:** {contact.role}")
                     if contact.notes:
                         st.write(f"**Notes:** {contact.notes}")
         else:
             st.info("No contact history for this patient")
-        
-        st.markdown("---")
-        st.info("💡 **Tip:** To log a new contact attempt, go to the **Daily Outreach** tab")
 
 # TAB 4: Settings
 with tab4:
@@ -1086,13 +1176,13 @@ with tab4:
     if recent_contacts:
         for contact in recent_contacts:
             patient = get_patient_by_id(session, contact.patient_id)
-            with st.expander(f"{contact.timestamp.strftime('%m/%d/%Y %I:%M %p')} - {patient.name if patient else 'Unknown'} - {contact.outcome}"):
-                st.write(f"**Patient:** {patient.name if patient else 'Unknown'}")
-                st.write(f"**Method:** {contact.method}")
-                st.write(f"**Outcome:** {contact.outcome}")
-                st.write(f"**Navigator:** {contact.user}")
-                if contact.notes:
-                    st.write(f"**Notes:** {contact.notes}")
+            with st.expander(f"{contact.timestamp.strftime('%m/%d/%Y %I:%M %p')} - {contact.method} - {contact.outcome}"):
+                    st.write(f"**Method:** {contact.method}")
+                    st.write(f"**Outcome:** {contact.outcome}")
+                    st.write(f"**Contact By:** {contact.user}")
+                    st.write(f"**Role:** {contact.role}")
+                    if contact.notes:
+                        st.write(f"**Notes:** {contact.notes}")
     else:
         st.info("No contact logs yet")
     

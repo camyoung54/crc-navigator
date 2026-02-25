@@ -39,6 +39,7 @@ class Contact(Base):
     method = Column(String(50))  # Phone, Text, In-person, Mail
     outcome = Column(String(100))  # No answer, Reached - scheduled, etc.
     user = Column(String(100))  # Navigator name
+    role = Column(String) # Role of person making contact
     notes = Column(Text)
     
     patient = relationship("Patient", back_populates="contacts")
