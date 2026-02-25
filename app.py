@@ -138,7 +138,13 @@ st.sidebar.markdown("""
 """)
 
 # Main tabs
-tab1, tab2, tab3, tab4 = st.tabs(["📊 Dashboard", "📞 Daily Outreach", "👤 Patient Details", "⚙️ Settings"])
+tab1, tab2, tab3, tab4, tab5 = st.tabs([
+    "📊 Dashboard", 
+    "📞 Daily Outreach", 
+    "✅ Tasks",  # NEW TAB
+    "👤 Patient Details", 
+    "⚙️ Settings"
+])
 
 # TAB 1: Dashboard
 with tab1:
@@ -358,13 +364,31 @@ with tab1:
             st.plotly_chart(fig_screen, use_container_width=True)
         
         with chart_col6:
-            # Placeholder for future chart
-            st.info("📊 **Additional Chart Coming Soon**\n\nThis space is reserved for future analytics.")
+            # Outstanding Tasks Chart
+            all_tasks = get_all_tasks(session)
             
-            # You can uncomment this when ready to add your chart:
-            # fig_placeholder = go.Figure()
-            # fig_placeholder.update_layout(title='Your Chart Title Here')
-            # st.plotly_chart(fig_placeholder, use_container_width=True)
+            if all_tasks:
+                pending_tasks = len([t for t in all_tasks if t.status == 'Pending'])
+                in_progress_tasks = len([t for t in all_tasks if t.status == 'In Progress'])
+                completed_tasks = len([t for t in all_tasks if t.status == 'Completed'])
+                
+                fig_tasks = go.Figure(data=[go.Bar(
+                    x=['Pending', 'In Progress', 'Completed'],
+                    y=[pending_tasks, in_progress_tasks, completed_tasks],
+                    marker_color=['#ffaa44', '#66b3ff', '#90EE90'],
+                    text=[pending_tasks, in_progress_tasks, completed_tasks],
+                    textposition='auto'
+                )])
+                
+                fig_tasks.update_layout(
+                    title='Tasks Status Overview',
+                    xaxis_title='',
+                    yaxis_title='Number of Tasks',
+                    height=400
+                )
+                st.plotly_chart(fig_tasks, use_container_width=True)
+            else:
+                st.info("📊 **No tasks yet**\n\nTasks will appear here once created from contact logs or the Tasks tab.")
         
         st.markdown("---")
         
@@ -823,8 +847,49 @@ with tab2:
                             key=f"notes_{p.id}"
                         )
                         
+                        st.markdown("---")
+                        st.markdown("**📋 Create Follow-up Task** (optional)")
+                        
+                        create_task = st.checkbox("Create a task from this contact", key=f"create_task_{p.id}")
+                        
+                        if create_task:
+                            task_col1, task_col2 = st.columns(2)
+                            
+                            with task_col1:
+                                task_type = st.selectbox(
+                                    "Task Type",
+                                    options=TASK_TYPES,
+                                    key=f"task_type_{p.id}"
+                                )
+                                
+                                task_assigned_to = st.text_input(
+                                    "Assign To",
+                                    placeholder="Person's name",
+                                    key=f"task_assign_{p.id}"
+                                )
+                            
+                            with task_col2:
+                                task_assigned_role = st.selectbox(
+                                    "Assign Role",
+                                    options=ROLES,
+                                    key=f"task_role_{p.id}"
+                                )
+                                
+                                task_priority = st.selectbox(
+                                    "Priority",
+                                    options=TASK_PRIORITIES,
+                                    index=1,
+                                    key=f"task_priority_{p.id}"
+                                )
+                            
+                            task_due_date = st.date_input(
+                                "Due Date",
+                                value=date.today(),
+                                key=f"task_due_{p.id}"
+                            )
+                        
                         submitted = st.form_submit_button(
-                            "💾 Log Contact",
+                            "💾 Log Contact" + (" & Create Task" if create_task else ""),
                             use_container_width=True
                         )
                         
@@ -844,6 +909,22 @@ with tab2:
                             new_contact = Contact(**contact_data)
                             session.add(new_contact)
                             
+                            # Create task if checkbox was selected
+                            if create_task and task_assigned_to:
+                                task_data = {
+                                    'patient_id': p.id,
+                                    'task_type': task_type,
+                                    'description': contact_notes,
+                                    'assigned_to': task_assigned_to,
+                                    'assigned_role': task_assigned_role,
+                                    'priority': task_priority,
+                                    'due_date': task_due_date,
+                                    'created_by': contact_user,
+                                    'created_by_role': contact_role,
+                                    'status': 'Pending'
+                                }
+                                add_task(session, task_data)
+                            
                             # Update patient status if applicable
                             if "Scheduled" in contact_outcome:
                                 p.status = "Scheduled"
@@ -854,12 +935,242 @@ with tab2:
                             
                             session.commit()
                             
-                            st.success(f"✅ Contact logged for {p.name}!")
+                            success_msg = f"✅ Contact logged for {p.name}!"
+                            if create_task and task_assigned_to:
+                                success_msg += f"\n✅ Task assigned to {task_assigned_to}!"
+                            
+                            st.success(success_msg)
                             st.balloons()
                             st.rerun()
 
-# TAB 3: Patient Details
+# TAB 3: Tasks Management
 with tab3:
+    st.header("✅ Task Management")
+    st.caption(f"Manage and track all patient-related tasks")
+    
+    # Get all tasks
+    session = get_session()
+    all_tasks = get_all_tasks(session)
+    
+    # Summary metrics
+    col1, col2, col3, col4 = st.columns(4)
+    
+    with col1:
+        pending = len([t for t in all_tasks if t.status == 'Pending'])
+        st.metric("🕐 Pending", pending)
+    
+    with col2:
+        in_progress = len([t for t in all_tasks if t.status == 'In Progress'])
+        st.metric("🔄 In Progress", in_progress)
+    
+    with col3:
+        overdue_tasks = len([t for t in all_tasks if t.due_date and t.due_date < date.today() and t.status != 'Completed'])
+        st.metric("⚠️ Overdue", overdue_tasks)
+    
+    with col4:
+        completed = len([t for t in all_tasks if t.status == 'Completed'])
+        st.metric("✅ Completed", completed)
+    
+    st.markdown("---")
+    
+    # Filter tasks
+    st.subheader("🔍 Filter Tasks")
+    
+    filter_col1, filter_col2, filter_col3 = st.columns(3)
+    
+    with filter_col1:
+        status_filter_tasks = st.multiselect(
+            "Status",
+            options=TASK_STATUSES,
+            default=['Pending', 'In Progress']
+        )
+    
+    with filter_col2:
+        priority_filter_tasks = st.multiselect(
+            "Priority",
+            options=TASK_PRIORITIES,
+            default=TASK_PRIORITIES
+        )
+    
+    with filter_col3:
+        role_filter_tasks = st.multiselect(
+            "Assigned Role",
+            options=ROLES,
+            default=ROLES
+        )
+    
+    # Filter tasks
+    filtered_tasks = [
+        t for t in all_tasks
+        if t.status in status_filter_tasks
+        and t.priority in priority_filter_tasks
+        and (t.assigned_role in role_filter_tasks if t.assigned_role else True)
+    ]
+    
+    st.info(f"📊 Showing **{len(filtered_tasks)}** tasks")
+    
+    # Quick Create Task
+    st.markdown("---")
+    st.subheader("➕ Create New Task")
+    
+    with st.form("quick_create_task"):
+        task_col1, task_col2 = st.columns(2)
+        
+        with task_col1:
+            quick_patient = st.selectbox(
+                "Patient *",
+                options=[p.name for p in get_all_patients(session)],
+                help="Select patient for this task"
+            )
+            
+            quick_task_type = st.selectbox(
+                "Task Type *",
+                options=TASK_TYPES
+            )
+            
+            quick_assigned_to = st.text_input(
+                "Assign To *",
+                placeholder="Person's name"
+            )
+            
+            quick_assigned_role = st.selectbox(
+                "Role *",
+                options=ROLES
+            )
+        
+        with task_col2:
+            quick_priority = st.selectbox(
+                "Priority *",
+                options=TASK_PRIORITIES,
+                index=1  # Default to Medium
+            )
+            
+            quick_due_date = st.date_input(
+                "Due Date",
+                value=date.today()
+            )
+            
+            quick_description = st.text_area(
+                "Description/Notes",
+                placeholder="Add any relevant details..."
+            )
+            
+            quick_created_by = st.text_input(
+                "Your Name",
+                value="Navigator"
+            )
+        
+        quick_submit = st.form_submit_button("➕ Create Task", use_container_width=True, type="primary")
+        
+        if quick_submit:
+            if not quick_patient or not quick_assigned_to:
+                st.error("❌ Patient and Assigned To are required!")
+            else:
+                # Get patient ID
+                selected_patient = [p for p in get_all_patients(session) if p.name == quick_patient][0]
+                
+                task_data = {
+                    'patient_id': selected_patient.id,
+                    'task_type': quick_task_type,
+                    'description': quick_description,
+                    'assigned_to': quick_assigned_to,
+                    'assigned_role': quick_assigned_role,
+                    'priority': quick_priority,
+                    'due_date': quick_due_date,
+                    'created_by': quick_created_by,
+                    'status': 'Pending'
+                }
+                
+                add_task(session, task_data)
+                st.success(f"✅ Task created and assigned to {quick_assigned_to}!")
+                st.rerun()
+    
+    st.markdown("---")
+    
+    # Display tasks
+    st.subheader("📋 All Tasks")
+    
+    if len(filtered_tasks) == 0:
+        st.info("No tasks match your filters")
+    else:
+        # Group by status
+        for status in ['Pending', 'In Progress', 'Completed', 'Cancelled']:
+            status_tasks = [t for t in filtered_tasks if t.status == status]
+            
+            if status_tasks:
+                status_emoji = {
+                    'Pending': '🕐',
+                    'In Progress': '🔄',
+                    'Completed': '✅',
+                    'Cancelled': '❌'
+                }
+                
+                st.markdown(f"### {status_emoji[status]} {status} ({len(status_tasks)})")
+                
+                for task in status_tasks:
+                    # Get patient info
+                    task_patient = get_patient_by_id(session, task.patient_id)
+                    
+                    # Priority color
+                    priority_colors = {
+                        'Urgent': '🔴',
+                        'High': '🟠',
+                        'Medium': '🟡',
+                        'Low': '⚪'
+                    }
+                    
+                    # Check if overdue
+                    is_overdue = task.due_date and task.due_date < date.today() and task.status != 'Completed'
+                    overdue_text = " - ⚠️ OVERDUE" if is_overdue else ""
+                    
+                    with st.expander(
+                        f"{priority_colors[task.priority]} [{task.priority}] {task.task_type} - {task_patient.name if task_patient else 'Unknown'} → {task.assigned_to} ({task.assigned_role}){overdue_text}"
+                    ):
+                        task_detail_col1, task_detail_col2 = st.columns(2)
+                        
+                        with task_detail_col1:
+                            st.write(f"**Patient:** {task_patient.name if task_patient else 'Unknown'}")
+                            st.write(f"**Village:** {task_patient.village if task_patient else 'N/A'}")
+                            st.write(f"**Task Type:** {task.task_type}")
+                            if task.description:
+                                st.write(f"**Description:** {task.description}")
+                        
+                        with task_detail_col2:
+                            st.write(f"**Assigned To:** {task.assigned_to}")
+                            st.write(f"**Role:** {task.assigned_role}")
+                            st.write(f"**Priority:** {task.priority}")
+                            st.write(f"**Due Date:** {task.due_date.strftime('%m/%d/%Y') if task.due_date else 'No due date'}")
+                            st.write(f"**Created:** {task.created_date.strftime('%m/%d/%Y')} by {task.created_by}")
+                        
+                        if task.notes:
+                            st.info(f"**Notes:** {task.notes}")
+                        
+                        st.markdown("---")
+                        
+                        # Task actions
+                        action_col1, action_col2, action_col3 = st.columns(3)
+                        
+                        with action_col1:
+                            if task.status == 'Pending' and st.button("▶️ Start Task", key=f"start_{task.id}", use_container_width=True):
+                                update_task_status(session, task.id, 'In Progress')
+                                st.success("Task started!")
+                                st.rerun()
+                        
+                        with action_col2:
+                            if task.status != 'Completed' and st.button("✅ Mark Complete", key=f"complete_task_{task.id}", use_container_width=True):
+                                update_task_status(session, task.id, 'Completed')
+                                st.success("Task completed!")
+                                st.balloons()
+                                st.rerun()
+                        
+                        with action_col3:
+                            if task.status != 'Cancelled' and st.button("❌ Cancel Task", key=f"cancel_{task.id}", use_container_width=True):
+                                update_task_status(session, task.id, 'Cancelled')
+                                st.warning("Task cancelled")
+                                st.rerun()
+
+# TAB 4: Patient Details
+with tab4:
     st.header("Patient Details & Information")
     
     if 'selected_patient' not in st.session_state or st.session_state.selected_patient is None:
@@ -939,6 +1250,48 @@ with tab3:
             st.info(f"**Notes:** {patient.notes}")
         
         st.markdown("---")
+        
+        # Patient's tasks
+        st.subheader("✅ Active Tasks for This Patient")
+        
+        patient_tasks = get_tasks_by_patient(session, patient.id, status_filter=None)
+        active_tasks = [t for t in patient_tasks if t.status in ['Pending', 'In Progress']]
+        
+        if active_tasks:
+            for task in active_tasks:
+                priority_colors = {'Urgent': '🔴', 'High': '🟠', 'Medium': '🟡', 'Low': '⚪'}
+                status_colors = {'Pending': '🕐', 'In Progress': '🔄'}
+                
+                is_overdue = task.due_date and task.due_date < date.today()
+                overdue_badge = " - ⚠️ OVERDUE" if is_overdue else ""
+                
+                with st.expander(f"{priority_colors[task.priority]}{status_colors[task.status]} {task.task_type} → {task.assigned_to}{overdue_badge}"):
+                    st.write(f"**Assigned To:** {task.assigned_to} ({task.assigned_role})")
+                    st.write(f"**Priority:** {task.priority}")
+                    st.write(f"**Status:** {task.status}")
+                    st.write(f"**Due:** {task.due_date.strftime('%m/%d/%Y') if task.due_date else 'No due date'}")
+                    if task.description:
+                        st.write(f"**Description:** {task.description}")
+                    
+                    # Quick actions
+                    task_action_col1, task_action_col2 = st.columns(2)
+                    with task_action_col1:
+                        if st.button("✅ Complete", key=f"complete_task_detail_{task.id}", use_container_width=True):
+                            update_task_status(session, task.id, 'Completed')
+                            st.success("Task completed!")
+                            st.rerun()
+                    
+                    with task_action_col2:
+                        if st.button("❌ Cancel", key=f"cancel_task_detail_{task.id}", use_container_width=True):
+                            update_task_status(session, task.id, 'Cancelled')
+                            st.rerun()
+        else:
+            st.info("No active tasks for this patient")
+        
+        # Show completed tasks count
+        completed_tasks = [t for t in patient_tasks if t.status == 'Completed']
+        if completed_tasks:
+            st.caption(f"✅ {len(completed_tasks)} completed task(s) - expand below to see history")        
         
         # NEW: Add contact logging form HERE (before contact history)
         st.subheader("📝 Log New Contact Attempt")
@@ -1047,8 +1400,8 @@ with tab3:
         else:
             st.info("No contact history for this patient")
 
-# TAB 4: Settings
-with tab4:
+# TAB 5: Settings
+with tab5:
     st.header("⚙️ Settings & Administration")
     
     st.markdown("---")
