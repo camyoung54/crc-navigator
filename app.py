@@ -1251,6 +1251,108 @@ with tab4:
         
         st.markdown("---")
         
+        # NEW: Update Screening Form
+        st.subheader("🩺 Record New Screening")
+        
+        with st.form(f"update_screening_{patient.id}"):
+            st.write("Record a completed screening for this patient:")
+            
+            screen_update_col1, screen_update_col2 = st.columns(2)
+            
+            with screen_update_col1:
+                new_screen_type = st.selectbox(
+                    "Screening Type *",
+                    options=['Colonoscopy', 'FIT', 'Cologuard', 'Sigmoidoscopy', 'CT Colonography'],
+                    key=f"new_screen_type_{patient.id}"
+                )
+                
+                new_screen_date = st.date_input(
+                    "Screening Date *",
+                    value=date.today(),
+                    max_value=date.today(),
+                    key=f"new_screen_date_{patient.id}"
+                )
+                
+                updated_by = st.text_input(
+                    "Your Name",
+                    value="",
+                    key=f"screen_updated_by_{patient.id}"
+                )
+            
+            with screen_update_col2:
+                updated_by_role = st.selectbox(
+                    "Your Role *",
+                    options=ROLES,
+                    key=f"screen_role_{patient.id}"
+                )
+                
+                screen_notes = st.text_area(
+                    "Notes",
+                    placeholder="Add any relevant notes about this screening...",
+                    key=f"screen_notes_{patient.id}"
+                )
+            
+            screen_submitted = st.form_submit_button(
+                "💾 Record Screening",
+                use_container_width=True,
+                type="primary"
+            )
+            
+            if screen_submitted:
+                from logic import update_patient_computed_fields
+                
+                # Get fresh patient object from database
+                fresh_session = get_session()
+                fresh_patient = get_patient_by_id(fresh_session, patient.id)
+                
+                # Update patient screening info
+                fresh_patient.last_screen_type = new_screen_type
+                fresh_patient.last_screen_date = new_screen_date
+                
+                # Add notes to patient record if provided
+                if screen_notes:
+                    current_notes = fresh_patient.notes or ""
+                    new_note = f"[{date.today().strftime('%m/%d/%Y')}] {new_screen_type} completed. {screen_notes}"
+                    fresh_patient.notes = f"{current_notes}\n{new_note}" if current_notes else new_note
+                
+                # Recalculate next due date and status
+                update_patient_computed_fields(fresh_session, fresh_patient)
+                
+                # Create a contact log for this screening
+                contact_log_notes = f"{new_screen_type} completed on {new_screen_date.strftime('%m/%d/%Y')}"
+                if screen_notes:
+                    contact_log_notes += f". Additional Notes: {screen_notes}"
+                
+                contact_log = Contact(
+                    patient_id=fresh_patient.id,
+                    method="Screening Recorded",
+                    outcome="Screening Completed",
+                    user=updated_by if updated_by else "Unknown",
+                    role=updated_by_role,
+                    notes=contact_log_notes,
+                    timestamp=datetime.now()
+                )
+                fresh_session.add(contact_log)
+                
+                # Mark any "Schedule [screening type]" tasks as completed
+                pending_screening_tasks = get_tasks_by_patient(fresh_session, fresh_patient.id)
+                for task in pending_screening_tasks:
+                    if "Schedule" in task.task_type and task.status != 'Completed':
+                        update_task_status(fresh_session, task.id, 'Completed')
+                
+                fresh_session.commit()
+                
+                # **KEY FIX**: Update session state with fresh patient data
+                st.session_state.selected_patient = fresh_patient
+                
+                st.success(f"✅ {new_screen_type} screening recorded for {fresh_patient.name}!")
+                st.success(f"📅 Next screening due: {fresh_patient.next_due_date.strftime('%m/%d/%Y')}")
+                st.success(f"📊 Status updated to: {fresh_patient.status}")
+                st.balloons()
+                st.rerun()
+        
+        st.markdown("---")
+ 
         # Patient's tasks
         st.subheader("✅ Active Tasks for This Patient")
         
